@@ -1,0 +1,265 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Material Management</title>
+    <style>
+      .hidden-fields {
+          display: none;
+      }
+  </style>
+</head>
+<body>
+    <h1><a href="/">Material</a> | <a href="pessoal" id="pessoalPageLink">Pessoal</a></h1>
+
+    <label for="filter" class="filters">Filter by:</label>
+    <input type="text"  class="filters" id="name_filter" placeholder="name">
+    <input type="text"  class="filters" id="quant_filter" placeholder="quant">
+    <input type="text"  class="filters" id="mat_filter" placeholder="id">
+    <input type="text"  class="filters" id="nome_filter" placeholder="nome">
+    <input type="checkbox" class="filters" id="invert"> <label class="filters">Invert</label>
+
+    <table border="1">
+      <tr>
+          <th>COD</th>
+          <th>Name</th>
+          <th>Quant</th>
+          <th>Price</th>
+          <th>ID</th>
+          <th>Nome</th>
+          <th>Actions</th>
+      </tr>
+      {% for material in materials %}
+      <tr>
+          <td>{{ material[0] }}</td>
+          <td>{{ material[1] }}</td>
+          <td>{{ material[2] }}</td>
+          <td>{{ material[3] }}</td>
+          <td>{{ material[4] }}</td>
+          <td>{{ material[5] }}</td>
+          <td>
+              <a href="#" class="update-link" data-material-id="{{ material[0] }}">Update</a>
+              <a href="#" class="delete-link" data-material-id="{{ material[0] }}">Delete</a>
+              {% if material[4] != 0 %}
+              <a href="#" class="entrega-link" data-material-id="{{ material[0] }}">Entregar</a>
+              {% else %}
+              <a href="{{ url_for('pessoal', materialAcaut=material|join(',')) }}">Acautelar</a>
+              {% endif %}
+          </td>
+      </tr>
+      <!-- Hidden fields for updating each material -->
+      <tr class="hidden-fields" id="hidden-fields-{{ material[0] }}">
+        <td>{{ material[0] }}</td>
+        <td>
+          <input type="text" name="update_name_{{ material[0] }}" value="{{ material[1] }}" required>
+        </td>
+        <td>
+            <input type="number" name="update_quantity_{{ material[0] }}" value="{{ material[2] }}" required>
+        </td>
+        <td>
+            <input type="number" step="0.01" name="update_price_{{ material[0] }}" value="{{ material[3] }}" required>
+        </td>
+        <td></td>
+        <td></td>
+        <td>
+            <button class="update-submit" data-material-id="{{ material[0] }}">Alterar</button>
+            <button class="update-cancel" data-material-id="{{ material[0] }}">Cancel</button>
+        </td>
+      </tr>
+      {% endfor %}
+  </table>
+  <p id="count"></p>
+
+    <h2>Add New Material</h2>
+    <form action="{{ url_for('add') }}" method="post">
+        <label for="name">Name:</label>
+        <input type="text" name="name" required>
+        <label for="quantity">Quantity:</label>
+        <input type="number" name="quantity" required>
+        <label for="price">Price:</label>
+        <input type="number" step="0.01" name="price" required>
+        <button type="submit">Add Material</button>
+    </form>
+
+    <script>
+      // JavaScript
+      document.addEventListener('DOMContentLoaded', function () {
+        // Actions links
+        const updateLinks = document.querySelectorAll('.update-link');
+        const deleteLinks = document.querySelectorAll('.delete-link');
+        const entregaLinks = document.querySelectorAll('.entrega-link');
+        // Filtros
+        const filterFields = [[1, document.getElementById('name_filter')], 
+                              [2, document.getElementById('quant_filter')],
+                              [4, document.getElementById('mat_filter')],
+                              [5, document.getElementById('nome_filter')]
+                             ]
+        for (var i = 0; i < filterFields.length; i++) {
+          filterFields[i][1].addEventListener('input', function () { filtra(filterFields); });
+        }
+        const cb = document.getElementById('invert');
+        cb.addEventListener('click', function (event) { filtra(filterFields); });
+        // Links de Update
+        updateLinks.forEach(link => {
+          link.addEventListener('click', function (event) {
+            event.preventDefault();
+            const materialId = this.getAttribute('data-material-id');
+            clear();
+            const filtros = document.querySelectorAll('.filters');
+            filtros.forEach(f => { f.style.display = 'none'; });
+            newEle = document.createElement("input");
+            newEle.value = materialId;
+            filtra([[0, newEle]])
+            this.style.display = 'none';
+            toggleUpdateFields(materialId);
+          });
+        });
+        // Links de Delete
+        deleteLinks.forEach(link => {
+          link.addEventListener('click', function (event) {
+            event.preventDefault();
+            const materialId = this.getAttribute('data-material-id');
+            showDeleteConfirmation(materialId);
+          });
+        });
+        // Links de Entrega
+        entregaLinks.forEach(link => {
+          link.addEventListener('click', function (event) {
+            event.preventDefault();
+            const materialId = this.getAttribute('data-material-id');
+            showEntregaConfirmation(materialId);
+          });
+        });
+
+        // *** F U N Ç Õ E S ***
+        // Função do update
+        function toggleUpdateFields(materialId) {
+          const hiddenFields = document.getElementById(`hidden-fields-${materialId}`);
+          hiddenFields.classList.toggle('hidden-fields');
+
+          const updateSubmitBtn = hiddenFields.querySelector(`.update-submit[data-material-id="${materialId}"]`);
+          const updateCancelBtn = hiddenFields.querySelector(`.update-cancel[data-material-id="${materialId}"]`);
+
+          updateSubmitBtn.addEventListener('click', function () {
+            const updatedName = document.querySelector(`[name="update_name_${materialId}"]`).value;
+            const updatedQuantity = document.querySelector(`[name="update_quantity_${materialId}"]`).value;
+            const updatedPrice = document.querySelector(`[name="update_price_${materialId}"]`).value;
+
+            // Add logic to send the updated values to the Flask update route
+            fetch(`/update/${materialId}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+              body: new URLSearchParams({
+                name: updatedName,
+                quantity: updatedQuantity,
+                price: updatedPrice,
+              }),
+            })
+            .then(response => {
+              if (response.ok) { location.reload(); } 
+              else { alert(`Failed to update material with ID ${materialId}`); }
+            })
+            .catch(error => {
+              console.error('Error updating material:', error);
+            })
+            .finally(() => {
+              toggleUpdateFields(materialId);
+            });
+          });
+
+          updateCancelBtn.addEventListener('click', function () {
+            clear();
+            toggleUpdateFields(materialId);
+          });
+        }
+
+        // Função de delete
+        function showDeleteConfirmation(materialId) {
+          const confirmDelete = confirm('Tem certeza que quer deletar este material?');
+          if (confirmDelete) {
+            // Add logic to handle the delete action
+            fetch(`/delete/${materialId}`, {
+              method: 'GET',
+            })
+            .then(response => {
+              if (response.ok) { location.reload(); } 
+              else { alert(`Failed to delete material with ID ${materialId}`); }
+            })
+            .catch(error => {
+              console.error('Error deleting material:', error);
+            });
+          }
+        }
+
+        // Função de entrega
+        function showEntregaConfirmation(materialId) {
+          const confirmEntrega = confirm('Tem certeza que quer devolver este material?');
+          if (confirmEntrega) {
+            // Add logic to handle the delete action
+            fetch(`/entrega/${materialId}`, {
+              method: 'GET',
+            })
+            .then(response => {
+              if (response.ok) { location.reload(); } 
+              else { alert(`Failed to entrega material with ID ${materialId}`); }
+            })
+            .catch(error => {
+              console.error('Error entrega material:', error);
+            });
+          }
+        }
+
+        // Limpa
+        function clear() {
+          const filtros = document.querySelectorAll('.filters');
+          filtros.forEach(f => { 
+            f.value = '';         // Clear Filters Inputs
+            f.style.display = ''; // Filters Inputs Show
+          });
+          const rows = document.querySelectorAll('table tr');
+          rows.forEach(r => { r.style.display = ''; }); // Show rows
+          updateLinks.forEach(upL => { upL.style.display = ''; }); // Show update links
+        }
+
+        // Função filtra
+        function filtra(col_ele) {
+          count = 0;
+          const countLabel = document.getElementById('count');
+          countLabel.value = count;
+          const cb = document.getElementById('invert');
+          const rows = document.querySelectorAll('table tr');
+          rows.forEach((row, indexRow) => {
+            if (indexRow == 0) { return; }
+            tem = true;
+            for (var i = 0; i < col_ele.length; i++) {
+              str = row.children[col_ele[i][0]].textContent.toLowerCase();
+              if (col_ele[i][0] == 0) {
+                tem = tem && (parseInt(str) == parseInt(col_ele[i][1].value.toLowerCase()));
+              } else {
+                tem = tem && str.includes(col_ele[i][1].value.toLowerCase())
+              }
+            }
+            if (cb.checked) { tem = !tem; }
+            if (tem) {
+              // console.log(row.getAttribute('class'));
+              row.style.display = ''; // Show the row
+              if (row.getAttribute('class') != "hidden-fields") {
+                count = count + 1;
+                countLabel.innerHTML = count;
+              }
+            } else {
+              row.style.display = 'none'; // Hide the row
+            }
+          });
+        }
+
+      });
+  </script>
+
+</body>
+</html>
